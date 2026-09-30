@@ -23,6 +23,9 @@ public class StpInterfaceImpl implements StpInterface {
     @Override
     public List<String> getRoleList(Object loginId, String loginType) {
         User user = (User) StpUtil.getSessionByLoginId(loginId).get(USER_LOGIN_STATE);
+        if (user == null || user.getUserRole() == null) {
+            return Collections.emptyList();
+        }
         return Collections.singletonList(user.getUserRole());
     }
 }

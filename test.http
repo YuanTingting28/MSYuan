@@ -1,0 +1,8 @@
+POST http://localhost:8109/user/register
+Content-Type: application/json
+
+{
+  "userAccount": "test",
+  "userPassword": "12345678",
+  "checkPassword": "12345678"
+}
