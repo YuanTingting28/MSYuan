@@ -47,3 +47,12 @@ sa-token:
   token-style: uuid
   # 是否输出操作日志
   is-log: true
+
+# application.yml
+thread-pool:
+  batch-add-question:
+    core-size: 20
+    max-size: 50
+    queue-capacity: 10000
+    keep-alive-seconds: 60
+    thread-name-prefix: "batch-add-question-"
