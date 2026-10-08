@@ -28,7 +28,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.ObjectUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
+import com.yuan.msyuanbackend.constant.CommonConstant;
+import com.yuan.msyuanbackend.esdao.QuestionEsDao;
+import com.yuan.msyuanbackend.exception.ThrowUtils;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -45,6 +47,8 @@ public class QuestionServiceImpl extends ServiceImpl<QuestionMapper, Question> i
     private UserService userService;
     @Resource
     private QuestionBankQuestionService questionBankQuestionService;
+    @Resource
+    private QuestionEsDao questionEsDao;
     /**
      * 校验数据
      * @param question
@@ -205,7 +209,21 @@ public class QuestionServiceImpl extends ServiceImpl<QuestionMapper, Question> i
 
     @Override
     public Page<Question> searchFromEs(QuestionQueryRequest questionQueryRequest) {
-        return null;
+        int current = questionQueryRequest.getCurrent();
+        int size = questionQueryRequest.getPageSize();
+        //ES默认只允许 from + size 《=1000 超过会直接报错
+        long from = (long) (current - 1) * size;
+        if (from + size > QuestionEsDao.MAX_RESULT_WINDOW) {
+            log.warn("ES 深分页超限（from+size={}），降级走数据库", from + size);
+            return listQuestionByPage(questionQueryRequest);
+        }
+        try {
+            return questionEsDao.search(questionQueryRequest);
+        } catch (Exception e) {
+            // ES 挂了不能影响用户搜索：记日志 + 走数据库降级
+            log.error("ES 检索失败，降级走数据库", e);
+            return listQuestionByPage(questionQueryRequest);
+        }
     }
 
     /**

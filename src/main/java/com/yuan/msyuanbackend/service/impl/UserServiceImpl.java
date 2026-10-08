@@ -7,6 +7,7 @@ import com.baomidou.mybatisplus.spring.service.impl.ServiceImpl;
 import com.yuan.msyuanbackend.common.ErrorCode;
 import com.yuan.msyuanbackend.constant.CommonConstant;
 import com.yuan.msyuanbackend.exception.BusinessException;
+import com.yuan.msyuanbackend.manager.SignInManager;
 import com.yuan.msyuanbackend.mapper.UserMapper;
 import com.yuan.msyuanbackend.model.dto.user.UserQueryRequest;
 import com.yuan.msyuanbackend.model.entity.User;
@@ -15,6 +16,7 @@ import com.yuan.msyuanbackend.model.vo.LoginUserVO;
 import com.yuan.msyuanbackend.model.vo.UserVO;
 import com.yuan.msyuanbackend.service.UserService;
 import com.yuan.msyuanbackend.utils.SqlUtils;
+import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
@@ -35,6 +37,8 @@ import static com.yuan.msyuanbackend.constant.UserConstant.USER_LOGIN_STATE;
 @Slf4j
 public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements UserService {
     public static final String SALT = "yupi";
+    @Resource
+    private SignInManager signInManager;
 
     @Override
     public long userRegister(String userAccount, String userPassword, String checkPassword) {
@@ -209,12 +213,18 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
      */
     @Override
     public boolean addUserSignIn(long userId) {
-        LocalDate date = LocalDate.now();
-        return true;
+        return signInManager.addSignInToday(userId).isFirstSign();
     }
-
+    /**
+     * 获取用户某个年份的签到记录
+     *
+     * @param userId 用户id
+     * @param year   年份，不传就是今年
+     * @return 这一年里签到的日期是"这一年的第几天"，例如 [1, 2, 90]
+     */
     @Override
     public List<Integer> getUserSignInRecord(long userId, Integer year) {
-        return List.of();
+        int targetYear = year == null ? LocalDate.now().getYear() : year;
+        return signInManager.getYearSignedRecord(userId,targetYear);
     }
 }

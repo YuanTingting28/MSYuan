@@ -205,6 +205,27 @@ public class QuestionBankController {
     }
 
     /**
+     * 分页获取题库列表（封装类，前台公开使用）
+     *
+     * @param questionBankQueryRequest
+     * @param request
+     * @return
+     */
+    @PostMapping("/list/page/vo")
+    public BaseResponse<Page<QuestionBankVO>> listQuestionBankVOByPage(@RequestBody QuestionBankQueryRequest questionBankQueryRequest,
+                                                                       HttpServletRequest request) {
+        ThrowUtils.throwIf(questionBankQueryRequest == null, ErrorCode.PARAMS_ERROR);
+        long current = questionBankQueryRequest.getCurrent();
+        long size = questionBankQueryRequest.getPageSize();
+        // 限制爬虫
+        ThrowUtils.throwIf(size > 20, ErrorCode.PARAMS_ERROR);
+        // 查询数据库
+        Page<QuestionBank> questionBankPage = questionBankService.page(new Page<>(current, size),
+                questionBankService.getQueryWrapper(questionBankQueryRequest));
+        // 获取封装类
+        return ResultUtils.success(questionBankService.getQuestionBankVOPage(questionBankPage, request));
+    }
+    /**
      * 分页获取当前登录用户创建的题库列表
      *
      * @param questionBankQueryRequest

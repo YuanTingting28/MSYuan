@@ -17,6 +17,7 @@ import com.yuan.msyuanbackend.model.entity.User;
 import com.yuan.msyuanbackend.model.vo.QuestionVO;
 import com.yuan.msyuanbackend.service.QuestionService;
 import com.yuan.msyuanbackend.service.UserService;
+import com.yuan.msyuanbackend.manager.QuestionEsSyncManager;
 import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
@@ -38,6 +39,8 @@ public class QuestionController {
 
     @Resource
     private UserService userService;
+    @Resource
+    private QuestionEsSyncManager questionEsSyncManager;
     // region 增删改查
 
     /**
@@ -68,6 +71,8 @@ public class QuestionController {
         ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR);
         // 返回新写入的数据 id
         long newQuestionId = question.getId();
+        // 单条实时同步到 ES：失败不影响新增（syncById 内部已经兜了异常）
+        questionEsSyncManager.syncById(newQuestionId);
         return ResultUtils.success(newQuestionId);
     }
 
@@ -96,6 +101,8 @@ public class QuestionController {
         // 操作数据库
         boolean result = questionService.removeById(id);
         ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR);
+        // 同步从 ES 里删掉
+        questionEsSyncManager.syncById(id);
         return ResultUtils.success(true);
     }
 
@@ -127,6 +134,8 @@ public class QuestionController {
         // 操作数据库
         boolean result = questionService.updateById(question);
         ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR);
+        // 内容改了，索引里的也要跟着改
+        questionEsSyncManager.syncById(id);
         return ResultUtils.success(true);
     }
 
@@ -257,6 +266,8 @@ public class QuestionController {
         // 操作数据库
         boolean result = questionService.updateById(question);
         ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR);
+        // 内容改了，索引里的也要跟着改
+        questionEsSyncManager.syncById(id);
         return ResultUtils.success(true);
     }
 
@@ -270,9 +281,9 @@ public class QuestionController {
         ThrowUtils.throwIf(size > 200, ErrorCode.PARAMS_ERROR);
         // todo 取消注释开启 ES（须先配置 ES）
         // 查询 ES
-        // Page<Question> questionPage = questionService.searchFromEs(questionQueryRequest);
+        Page<Question> questionPage = questionService.searchFromEs(questionQueryRequest);
         // 查询数据库（作为没有 ES 的降级方案）
-        Page<Question> questionPage = questionService.listQuestionByPage(questionQueryRequest);
+        //Page<Question> questionPage = questionService.listQuestionByPage(questionQueryRequest);
         return ResultUtils.success(questionService.getQuestionVOPage(questionPage, request));
     }
 
@@ -280,7 +291,14 @@ public class QuestionController {
     @SaCheckRole(UserConstant.ADMIN_ROLE)
     public BaseResponse<Boolean> batchDeleteQuestions(@RequestBody QuestionBatchDeleteRequest questionBatchDeleteRequest) {
         ThrowUtils.throwIf(questionBatchDeleteRequest == null, ErrorCode.PARAMS_ERROR);
-        questionService.batchDeleteQuestions(questionBatchDeleteRequest.getQuestionIdList());
+        List<Long> questionIdList = questionBatchDeleteRequest.getQuestionIdList();
+        questionService.batchDeleteQuestions(questionIdList);
+        // 逐条从 ES 里删掉
+        if (questionIdList != null) {
+            for (Long questionId : questionIdList) {
+                questionEsSyncManager.syncById(questionId);
+            }
+        }
         return ResultUtils.success(true);
     }
 

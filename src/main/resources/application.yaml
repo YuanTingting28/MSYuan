@@ -8,7 +8,13 @@ spring:
   mvc:
     pathmatch:
       matching-strategy: ant_path_matcher
-
+  # Redis：刷题签到 BitMap
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      database: 0
+      timeout: 3000ms
 
   #数据库配置
   datasource:
@@ -16,6 +22,16 @@ spring:
     url: jdbc:mysql://localhost:3306/msyuan
     username: root
     password: 123456
+
+  # ===== 第二阶段：Elasticsearch =====
+es:
+  # 题目索引名
+  question-index: question
+  sync:
+  # 启动时是否全量同步一次
+    full-on-startup: false
+    # 增量同步每批条数
+    batch-size: 500
 
 server:
   address: 0.0.0.0
