@@ -171,4 +171,20 @@ public class QuestionEsSyncManager {
             log.error("单条同步题目 [{}] 到 ES 失败，不影响主流程", questionId, e);
         }
     }
+    /**
+     * 批量实时同步，删除场景专用
+     * 逻辑删除的题目在MySql里查不到了，直接按id从ES里批量删除，一次请求搞定
+     */
+    public void syncBatchDelete(List<Long> questionIdList)
+    {
+        if(CollUtil.isEmpty(questionIdList))
+        {
+            return;
+        }
+        try{
+            questionEsDao.bulkDelete(questionIdList);
+        } catch (Exception e) {
+            log.error("批量同步删除题目到 ES 失败，条数 {}，不影响主流程", questionIdList.size(), e);
+        }
+    }
 }

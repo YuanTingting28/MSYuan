@@ -21,8 +21,10 @@ import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.ObjectUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 
+import java.io.Serializable;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -164,4 +166,16 @@ public class QuestionBankServiceImpl extends ServiceImpl<QuestionBankMapper, Que
         questionBankVOPage.setRecords(questionBankVOList);
         return questionBankVOPage;
     }
+    /**
+     * 题库详情加缓存
+     * value是混村名，key是题目id——redis里的key长这样：
+     * msyuan:cache:questionBank:123
+     */
+    @Cacheable(cacheNames = "questionBank",key = "#id")
+    @Override
+    public QuestionBank getById(Serializable id)
+    {
+        return super.getById(id);
+    }
+
 }

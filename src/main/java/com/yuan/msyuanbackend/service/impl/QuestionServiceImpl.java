@@ -228,21 +228,45 @@ public class QuestionServiceImpl extends ServiceImpl<QuestionMapper, Question> i
 
     /**
      * 批量删除题目
+     * 旧版本 这里面有一层循环就有2条SQL执行，这太浪费性能了，删1000条就等于执行2000条SQL 改为2条SQL
      *
+     * @param questionIdList
+     */
+//    @Transactional(rollbackFor = Exception.class)
+//    @Override
+//    public void batchDeleteQuestions(List<Long> questionIdList) {
+//        ThrowUtils.throwIf(CollUtil.isEmpty(questionIdList),ErrorCode.PARAMS_ERROR,"要删除的题目列表不能为空");
+//        for (Long questionId : questionIdList) {
+//            boolean result = this.removeById(questionId);
+//            ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR, "删除题目失败");
+//            // 移除题目题库关系
+//            //构造查询
+//            LambdaQueryWrapper<QuestionBankQuestion> lambdaQueryWrapper = Wrappers.lambdaQuery(QuestionBankQuestion.class)
+//                    .eq(QuestionBankQuestion::getQuestionId, questionId);
+//            questionBankQuestionService.remove(lambdaQueryWrapper);
+//        }
+//    }
+   // 一次IN的最大条数，太大容易把SQL撑爆
+    private static final int DELETE_BATCH_SIZE = 500;
+    /**
+     *为什么还要分批？`IN (...)` 里塞 10 万个 id，SQL 文本几 MB，MySQL 的 `max_allowed_packet` 直接给你报错。
+     * > 分批是“一次别干太多”的通用原则。
      * @param questionIdList
      */
     @Transactional(rollbackFor = Exception.class)
     @Override
     public void batchDeleteQuestions(List<Long> questionIdList) {
         ThrowUtils.throwIf(CollUtil.isEmpty(questionIdList),ErrorCode.PARAMS_ERROR,"要删除的题目列表不能为空");
-        for (Long questionId : questionIdList) {
-            boolean result = this.removeById(questionId);
-            ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR, "删除题目失败");
-            // 移除题目题库关系
-            //构造查询
-            LambdaQueryWrapper<QuestionBankQuestion> lambdaQueryWrapper = Wrappers.lambdaQuery(QuestionBankQuestion.class)
-                    .eq(QuestionBankQuestion::getQuestionId, questionId);
-            questionBankQuestionService.remove(lambdaQueryWrapper);
+        //去重 避免同一id传两次
+        List<Long> distinctIdList = questionIdList.stream().distinct().toList(); //直接用distinct去重即可
+        for (int i = 0; i < distinctIdList.size(); i+=DELETE_BATCH_SIZE) {
+            List<Long> subList = distinctIdList.subList(i,Math.min(i+DELETE_BATCH_SIZE,distinctIdList.size()));
+            //1.批量逻辑删除题目
+            boolean result = this.removeByIds(subList);
+            ThrowUtils.throwIf(!result,ErrorCode.OPERATION_ERROR,"批量删除题目失败");
+            //2.批量删除题库-题目关联
+            questionBankQuestionService.remove(Wrappers.<QuestionBankQuestion>lambdaQuery()
+                    .in(QuestionBankQuestion::getQuestionId,subList));
         }
     }
 }

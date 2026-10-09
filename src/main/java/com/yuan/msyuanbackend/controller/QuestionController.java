@@ -294,10 +294,9 @@ public class QuestionController {
         List<Long> questionIdList = questionBatchDeleteRequest.getQuestionIdList();
         questionService.batchDeleteQuestions(questionIdList);
         // 逐条从 ES 里删掉
+        //syncById 里是getById (一次查库）+一次ES请求。删1000条=1000次查库+1000次HTTP 是一次浪费，改成一次bulk
         if (questionIdList != null) {
-            for (Long questionId : questionIdList) {
-                questionEsSyncManager.syncById(questionId);
-            }
+            questionEsSyncManager.syncBatchDelete(questionIdList);
         }
         return ResultUtils.success(true);
     }

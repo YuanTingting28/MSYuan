@@ -19,9 +19,38 @@ spring:
   #数据库配置
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
-    url: jdbc:mysql://localhost:3306/msyuan
+    url: jdbc:mysql://localhost:3306/msyuan?rewriteBatchedStatements=true&useServerPrepStmts=true&cachePrepStmts=true&allowMultiQueries=true
     username: root
     password: 123456
+    druid:
+      initial-size: 10
+      min-idle: 10
+      max-active: 30 #这里要显示放大
+      max-wait: 3000
+      validation-query: SELECT 1
+      test-while-idle: true
+      test-on-borrow: false
+      test-on-return: false
+      keep-alive: true
+      time-between-eviction-runs-millis: 60000
+      min-evictable-idle-time-millis: 300000
+
+      filter:
+        stat:
+          slow-sql-millis: 1000
+          enabled: true
+          log-slow-sql: true
+          merge-sql: true
+      web-stat-filter:
+        enabled: true
+        exclusions: "*.js,*.css,*.ico,*.png,*.jpg,*.gif,/druid/*"
+      stat-view-servlet:
+        enabled: true
+        url-pattern: /druid/*
+        login-username: admin
+        login-password: 123456
+        reset-enable: false
+      aop-patterns: com.yuan.msyuanbackend.service.*
 
   # ===== 第二阶段：Elasticsearch =====
 es:

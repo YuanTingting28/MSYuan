@@ -35,6 +35,11 @@
             <artifactId>spring-boot-starter-elasticsearch</artifactId>
         </dependency>
         <dependency>
+            <groupId>com.google.guava</groupId>
+            <artifactId>guava</artifactId>
+            <version>33.4.8-jre</version>
+        </dependency>
+        <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-aspectj</artifactId>
         </dependency>
@@ -95,6 +100,12 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-data-redis</artifactId>
+        </dependency>
+        <!-- Druid 连接池（只用内核，不用 starter：Boot 3+ 不再读 spring.factories） -->
+        <dependency>
+            <groupId>com.alibaba</groupId>
+            <artifactId>druid-spring-boot-4-starter</artifactId>
+            <version>1.2.28</version>
         </dependency>
         <dependency>
             <groupId>org.jetbrains</groupId>
