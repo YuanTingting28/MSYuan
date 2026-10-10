@@ -3,6 +3,12 @@ package com.yuan.msyuanbackend.controller;
 import cn.dev33.satoken.annotation.SaCheckRole;
 import cn.dev33.satoken.stp.StpUtil;
 import cn.hutool.json.JSONUtil;
+import com.alibaba.csp.sentinel.Entry;
+import com.alibaba.csp.sentinel.EntryType;
+import com.alibaba.csp.sentinel.SphU;
+import com.alibaba.csp.sentinel.Tracer;
+import com.alibaba.csp.sentinel.slots.block.BlockException;
+import com.alibaba.csp.sentinel.slots.block.degrade.DegradeException;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.yuan.msyuanbackend.common.BaseResponse;
 import com.yuan.msyuanbackend.common.DeleteRequest;
@@ -15,6 +21,7 @@ import com.yuan.msyuanbackend.model.dto.question.*;
 import com.yuan.msyuanbackend.model.entity.Question;
 import com.yuan.msyuanbackend.model.entity.User;
 import com.yuan.msyuanbackend.model.vo.QuestionVO;
+import com.yuan.msyuanbackend.sentinel.SentinelConstant;
 import com.yuan.msyuanbackend.service.QuestionService;
 import com.yuan.msyuanbackend.service.UserService;
 import com.yuan.msyuanbackend.manager.QuestionEsSyncManager;
@@ -23,7 +30,9 @@ import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
 import org.springframework.web.bind.annotation.*;
+import tools.jackson.core.ObjectReadContext;
 
+import javax.xml.transform.Result;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
@@ -200,10 +209,59 @@ public class QuestionController {
     /**
      * listQuestionVOByPageSentinel 降级操作：直接返回本地数据（此处为了方便演示，写在同一个类中）
      */
-    public BaseResponse<Page<QuestionVO>> handleFallback(@RequestBody QuestionQueryRequest questionQueryRequest,
+    @PostMapping("/list/page/vo/sentinel")
+    public BaseResponse<Page<QuestionVO>> listQuestionVOByPageSentinel( @RequestBody QuestionQueryRequest questionQueryRequest,HttpServletRequest request)
+    {
+        ThrowUtils.throwIf(questionQueryRequest == null,ErrorCode.PARAMS_ERROR);
+        long size = questionQueryRequest.getPageSize();
+        //限制爬虫
+        ThrowUtils.throwIf(size>20,ErrorCode.PARAMS_ERROR);
+        //按IP限流 把IP作为热点参数传进去
+        String remoteAddr = request.getRemoteAddr();
+        Entry entry = null;
+        try{
+            // 这里的 remoteAddr 就是 ParamFlowRule 里 paramIdx = 0 的那个参数
+            entry = SphU.entry(SentinelConstant.listQuestionVOByPage, EntryType.IN,1,remoteAddr);
+        //被保护的业务逻辑
+            Page<Question> questionPage = questionService.listQuestionByPage(questionQueryRequest);
+            return ResultUtils.success(questionService.getQuestionVOPage(questionPage,request));
+
+        } catch (Throwable ex) {
+            //业务异常，交给Sentinel统计，异常比例熔断要用，然后正常返回错误
+            if(!BlockException.isBlockException(ex))
+            {
+                Tracer.trace(ex);
+                return ResultUtils.error(ErrorCode.SYSTEM_ERROR,"系统错误");
+            }
+            //熔断导致的拦截 走降级
+            if(ex instanceof DegradeException)
+            {
+                return handleFallback(questionQueryRequest,request,ex);
+            }
+            //限流导致的拦截
+            return ResultUtils.error(ErrorCode.SYSTEM_ERROR,"访问过于频繁，请稍后再试");
+        }finally{
+            // 一定要 exit，而且要传和 entry 一样的参数，否则统计会错乱
+            if(entry !=null)
+            {
+                entry.exit(1,remoteAddr);
+            }
+        }
+    }
+
+    /**
+     * 降级方法，熔断时返回什么
+     * @param questionQueryRequest
+     * @param request
+     * @param ex
+     * @return
+     */
+    public BaseResponse<Page<QuestionVO>> handleFallback(QuestionQueryRequest questionQueryRequest,
                                                          HttpServletRequest request, Throwable ex) {
         // 可以返回本地数据或空数据
-        return ResultUtils.success(null);
+        log.warn("题目列表接口触发熔断降级，原因：{}", ex.getClass().getSimpleName());
+        return ResultUtils.success(new Page<>(questionQueryRequest.getCurrent(),
+                questionQueryRequest.getPageSize(), 0));
     }
 
 
